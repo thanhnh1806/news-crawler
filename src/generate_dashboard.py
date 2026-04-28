@@ -2,6 +2,10 @@ import sqlite3
 import os
 from datetime import datetime
 from itertools import groupby
+try:
+    from src.crypto import get_top_crypto, format_price, format_market_cap
+except ImportError:
+    from crypto import get_top_crypto, format_price, format_market_cap
 
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "news.db")
 DASHBOARD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "dashboard")
@@ -50,14 +54,14 @@ def render_article_card(a):
     time_str = format_time(a.get("published_at") or a.get("first_seen_at") or a.get("crawled_at", ""))
 
     if img:
-        img_html = f'<img class="w-full aspect-video object-cover rounded-sm" src="{img}" alt="{title}" loading="lazy">'
+        img_html = f'<img class="w-full aspect-video object-cover" src="{img}" alt="{title}" loading="lazy">'
     else:
-        img_html = '<div class="w-full aspect-video bg-gray-100 rounded-sm flex items-center justify-center text-xs text-gray-300 font-sans">&mdash;</div>'
+        img_html = '<div class="w-full aspect-video bg-gray-100 flex items-center justify-center text-xs text-gray-300 font-sans">&mdash;</div>'
 
-    return f'''<article class="group">
+    return f'''<article class="group bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
     <a href="{url}" target="_blank" rel="noopener noreferrer" class="block">
         {img_html}
-        <div class="mt-4">
+        <div class="p-4">
             <div class="text-xs font-medium uppercase tracking-wider text-blue-600 mb-1.5">{source.upper()}</div>
             <h2 class="font-serif text-lg font-bold text-gray-900 leading-snug mb-1.5 group-hover:text-gray-600 transition-colors">{title}</h2>
             <p class="text-sm text-gray-500 line-clamp-2 mb-2">{desc}</p>
@@ -67,11 +71,54 @@ def render_article_card(a):
 </article>'''
 
 
+def render_crypto_sidebar(coins):
+    """Render crypto price sidebar HTML."""
+    if not coins:
+        return '<p class="text-xs text-gray-400">Không thể tải giá crypto</p>'
+    updated_at = datetime.now().strftime("%H:%M %d/%m")
+    rows = []
+    for c in coins:
+        symbol = escape_html(c["symbol"])
+        name = escape_html(c["name"])
+        price = format_price(c["price"])
+        change = c["change_24h"]
+        mcap = format_market_cap(c["market_cap"])
+        img = escape_html(c.get("image_url", ""))
+        change_color = "text-emerald-600" if change >= 0 else "text-red-500"
+        change_sign = "+" if change >= 0 else ""
+        img_html = f'<img src="{img}" alt="{symbol}" class="w-5 h-5 rounded-full flex-shrink-0">' if img else '<div class="w-5 h-5 rounded-full bg-gray-200 flex-shrink-0"></div>'
+        rows.append(f'''<div class="flex items-center gap-2.5 py-2.5 border-b border-gray-50 last:border-0">
+            {img_html}
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between">
+                    <span class="font-semibold text-sm text-gray-900">{symbol}</span>
+                    <span class="text-sm font-medium text-gray-900 tabular-nums">{price}</span>
+                </div>
+                <div class="flex items-center justify-between mt-0.5">
+                    <span class="text-[11px] text-gray-400 truncate">{name}</span>
+                    <span class="text-xs font-medium {change_color} tabular-nums">{change_sign}{change}%</span>
+                </div>
+            </div>
+        </div>''')
+    rows_html = "\n".join(rows)
+    return f'''<div id="crypto-sidebar" class="bg-white rounded-lg border border-gray-100 p-4">
+        <div class="flex items-center justify-between mb-3 pb-2 border-b border-gray-100">
+            <h3 class="font-semibold text-sm text-gray-900">Crypto Prices</h3>
+            <span id="crypto-updated" class="text-[10px] text-gray-400">{updated_at}</span>
+        </div>
+        {rows_html}
+    </div>'''
+
+
 def build_html(articles):
     total = len(articles)
     updated_at = datetime.now().strftime("%H:%M %d/%m/%Y")
 
     rows_html = "\n".join(render_article_card(a) for a in articles)
+
+    # Fetch crypto prices
+    coins = get_top_crypto(10)
+    crypto_html = render_crypto_sidebar(coins)
 
     html = f'''<!DOCTYPE html>
 <html lang="vi">
@@ -103,6 +150,18 @@ def build_html(articles):
             -webkit-box-orient: vertical;
             overflow: hidden;
         }}
+        @media (min-width: 1024px) {{
+            .layout-2col {{
+                display: grid;
+                grid-template-columns: 1fr 300px;
+                gap: 2rem;
+                align-items: start;
+            }}
+            .sidebar-sticky {{
+                position: sticky;
+                top: 1.5rem;
+            }}
+        }}
     </style>
 </head>
 <body class="bg-white text-gray-900 antialiased">
@@ -111,10 +170,15 @@ def build_html(articles):
             <h1 class="text-3xl font-bold tracking-tight text-gray-900">Tin Tức Kinh Tế</h1>
             <p class="text-gray-500 mt-2 text-base">{total} bài viết · Cập nhật {updated_at}</p>
         </header>
-        
-        <main class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {rows_html}
-        </main>
+
+        <div class="layout-2col">
+            <main class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {rows_html}
+            </main>
+            <aside class="sidebar-sticky order-first lg:order-last">
+                {crypto_html}
+            </aside>
+        </div>
     </div>
 </body>
 </html>'''
