@@ -125,6 +125,9 @@ def build_html(articles):
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Tin Tức Kinh Tế</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -180,6 +183,31 @@ def build_html(articles):
             </aside>
         </div>
     </div>
+    <script>
+    async function refreshCrypto() {{
+        try {{
+            const resp = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=10&page=1&sparkline=false&price_change_percentage=24h');
+            const data = await resp.json();
+            const sidebar = document.getElementById('crypto-sidebar');
+            if (!sidebar) return;
+            const items = sidebar.querySelectorAll('.flex.items-center.gap-2\\.5');
+            data.forEach((coin, i) => {{
+                if (i >= items.length) return;
+                const price = coin.current_price < 1 ? '$' + coin.current_price.toFixed(6) : coin.current_price < 1000 ? '$' + coin.current_price.toFixed(2) : '$' + coin.current_price.toLocaleString('en', {{maximumFractionDigits: 0}});
+                const change = coin.price_change_percentage_24h || 0;
+                const color = change >= 0 ? 'text-emerald-600' : 'text-red-500';
+                const sign = change >= 0 ? '+' : '';
+                const spans = items[i].querySelectorAll('span');
+                if (spans[1]) spans[1].textContent = price;
+                if (spans[3]) {{ spans[3].textContent = sign + change.toFixed(2) + '%'; spans[3].className = 'text-xs font-medium ' + color + ' tabular-nums'; }}
+            }});
+            const now = new Date();
+            const ts = document.getElementById('crypto-updated');
+            if (ts) ts.textContent = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0') + ' ' + String(now.getDate()).padStart(2,'0') + '/' + String(now.getMonth()+1).padStart(2,'0');
+        }} catch(e) {{ console.warn('Crypto refresh failed', e); }}
+    }}
+    setInterval(refreshCrypto, 60000);
+    </script>
 </body>
 </html>'''
     return html
