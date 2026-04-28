@@ -1,0 +1,7 @@
+venv/
+news.db
+.DS_Store
+crawler.log
+__pycache__/
+*.pyc
+.qodo/
