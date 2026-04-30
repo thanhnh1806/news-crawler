@@ -1634,6 +1634,9 @@ SOURCES = {
     "pyn.fi": [
         "https://www.pyn.fi/en/news/",
     ],
+    "tctd.vn": [
+        "https://tctd.vn/rss/tin-moi.rss",
+    ],
 }
 
 
@@ -1744,6 +1747,10 @@ def crawl_all() -> List[Dict]:
     for url in SOURCES["pyn.fi"]:
         print(f"[CRAWL] pyn.fi from {url} ...")
         results.extend(parse_pyn(url))
+    # tctd.vn
+    for url in SOURCES["tctd.vn"]:
+        print(f"[CRAWL] tctd.vn from {url} ...")
+        results.extend(parse_rss(url, "tctd.vn"))
 
     # Validate and filter out articles with server errors (parallel)
     print(f"[VALIDATE] Checking {len(results)} articles for server errors...")
