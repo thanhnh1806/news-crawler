@@ -50,6 +50,8 @@ class Container:
         return CoinGeckoClient(
             api_url=self.config.coingecko_url,
             cache_ttl=self.config.coingecko_cache_ttl,
+            verify_ssl=self.config.verify_ssl,
+            rate_limit_interval=self.config.coingecko_rate_limit_interval,
         )
 
     @property

@@ -8,12 +8,37 @@ from urllib.parse import urljoin, urlparse
 from typing import List, Dict, Optional
 import concurrent.futures
 from datetime import datetime, timezone, timedelta
+import urllib3
+import os
+
+# SSL verification setting - can be disabled via environment variable if needed
+VERIFY_SSL = os.getenv("VERIFY_SSL", "true").lower() == "true"
+
+if not VERIFY_SSL:
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "vi-VN,vi;q=0.9,en;q=0.8",
 }
+
+# HTTP caching configuration
+ENABLE_HTTP_CACHE = os.getenv("ENABLE_HTTP_CACHE", "true").lower() == "true"
+CACHE_BACKEND = os.getenv("CACHE_BACKEND", "sqlite")
+CACHE_NAME = os.getenv("CACHE_NAME", "news_crawler_cache")
+
+# Try to import requests-cache if available
+try:
+    import requests_cache
+    if ENABLE_HTTP_CACHE:
+        requests_cache.install_cache(
+            cache_name=CACHE_NAME,
+            backend=CACHE_BACKEND,
+            expire_after=int(os.getenv("CACHE_EXPIRE_AFTER", "300"))  # 5 minutes default
+        )
+except ImportError:
+    ENABLE_HTTP_CACHE = False
 
 
 class DomainRateLimiter:
@@ -46,7 +71,7 @@ def fetch_url(url: str, max_retries: int = 3) -> Optional[str]:
     _rate_limiter.wait(url)
     for attempt in range(max_retries):
         try:
-            resp = requests.get(url, headers=HEADERS, timeout=20)
+            resp = requests.get(url, headers=HEADERS, timeout=20, verify=VERIFY_SSL)
             if resp.status_code == 429:
                 retry_after = int(resp.headers.get("Retry-After", 2 ** (attempt + 1)))
                 print(f"[RATE LIMIT] 429 for {url}, retrying in {retry_after}s (attempt {attempt + 1}/{max_retries})")
@@ -71,7 +96,7 @@ def validate_url(url: str) -> bool:
     """Check if URL returns a valid response (not 5xx Server Error). Returns True if valid."""
     _rate_limiter.wait(url)
     try:
-        resp = requests.head(url, headers=HEADERS, timeout=5, allow_redirects=True)
+        resp = requests.head(url, headers=HEADERS, timeout=5, allow_redirects=True, verify=VERIFY_SSL)
         # Status 5xx = Server Error (invalid)
         # Status 4xx = Client Error (might be temporary, still valid)
         # Status 3xx/2xx = OK
