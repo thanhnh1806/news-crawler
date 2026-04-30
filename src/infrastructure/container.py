@@ -6,7 +6,7 @@ try:
     from src.adapters.crypto.coingecko_client import CoinGeckoClient
     from src.adapters.web.http_crawler import HttpCrawler
     from src.adapters.web.rate_limiter import DomainRateLimiter
-    from src.adapters.renderers.tailwind_renderer import TailwindDashboardRenderer
+    from src.adapters.renderers.modern_glassmorphism_renderer import ModernGlassmorphismRenderer
     from src.application.services.crawl_service import CrawlArticlesUseCase
     from src.application.services.dashboard_service import GenerateDashboardUseCase
     from src.application.services.crypto_service import GetCryptoPricesUseCase
@@ -18,7 +18,7 @@ except ImportError:
     from adapters.crypto.coingecko_client import CoinGeckoClient
     from adapters.web.http_crawler import HttpCrawler
     from adapters.web.rate_limiter import DomainRateLimiter
-    from adapters.renderers.tailwind_renderer import TailwindDashboardRenderer
+    from adapters.renderers.modern_glassmorphism_renderer import ModernGlassmorphismRenderer
     from application.services.crawl_service import CrawlArticlesUseCase
     from application.services.dashboard_service import GenerateDashboardUseCase
     from application.services.crypto_service import GetCryptoPricesUseCase
@@ -57,8 +57,8 @@ class Container:
         return HttpCrawler()
 
     @property
-    def dashboard_renderer(self) -> TailwindDashboardRenderer:
-        return TailwindDashboardRenderer()
+    def dashboard_renderer(self) -> ModernGlassmorphismRenderer:
+        return ModernGlassmorphismRenderer()
 
     # --- Use Cases (Layer 2) ---
 

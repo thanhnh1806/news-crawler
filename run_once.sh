@@ -3,4 +3,4 @@
 set -e
 cd "$(dirname "$0")"
 source venv/bin/activate
-python src/main.py --run-once
+python -m src.infrastructure.cli --run-once

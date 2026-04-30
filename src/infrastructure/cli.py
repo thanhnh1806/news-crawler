@@ -7,7 +7,10 @@ import sys
 import os
 import webbrowser
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add src/ to path so all modules are importable
+_src_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _src_dir not in sys.path:
+    sys.path.insert(0, _src_dir)
 
 from infrastructure.config import AppConfig
 from infrastructure.container import Container

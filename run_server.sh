@@ -19,4 +19,4 @@ echo ""
 # Open browser after server starts
 (sleep 3 && open http://localhost:5000) &
 
-python src/dashboard_server.py
+python -m src.infrastructure.flask_server
