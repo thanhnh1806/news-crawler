@@ -101,7 +101,7 @@ This document summarizes the comprehensive refactoring performed on the news cra
 - Added `requests-cache>=1.0.0` for HTTP caching
 - Added `python-dotenv>=1.0.0` for environment variable management
 
-### Phase 5: Code Quality Standards ✅
+### Phase 5: Code Quality Standards
 
 #### 5.1 Google-Style Docstrings
 
@@ -139,6 +139,41 @@ This document summarizes the comprehensive refactoring performed on the news cra
   - Trailing whitespace
   - End-of-file fixer
 
+### Phase 6: Performance Optimization
+
+#### 6.1 Fix Segmentation Fault
+
+- **File**: `src/crawler.py`
+- Added batch processing for validation (batch_size=100)
+- Reduced ThreadPoolExecutor workers from 4 to 2 per batch
+- Added memory cleanup between batches (del batch, del validated)
+- Added progress logging for each batch
+- **Result**: Fixed segmentation fault when validating 5000+ articles
+
+#### 6.2 Performance Monitoring
+
+- **File**: `src/crawler.py`
+- Added timing logs for validation phase
+- Added timing logs for backfill phase
+- Added total crawl time measurement
+- Added article count tracking in final log
+- **File**: `src/crawler.py`
+- Added `_log_memory_usage()` function (optional, requires psutil)
+- Added memory logging at key points:
+  - Crawl start
+  - Before validation
+  - After validation
+  - Before backfill
+  - After backfill
+
+#### 6.3 Optimize Backfill
+
+- **File**: `src/crawler.py`
+- Added batch processing for backfill (batch_size=50)
+- Added progress logging for each backfill batch
+- Added memory cleanup between batches
+- **Result**: Prevents memory exhaustion during backfill of large article lists
+
 ## Files Modified
 
 ### Core Domain
@@ -158,7 +193,7 @@ This document summarizes the comprehensive refactoring performed on the news cra
 
 ### Legacy
 
-- `src/crawler.py` - SSL verification, HTTP caching
+- `src/crawler.py` - SSL verification, HTTP caching, performance optimization
 
 ### Configuration
 
@@ -172,6 +207,32 @@ This document summarizes the comprehensive refactoring performed on the news cra
 - `legacy/_dashboard_server_legacy.py`
 - `legacy/_main_legacy.py`
 - `legacy/generate_dashboard.py.disabled`
+
+## Performance Baselines
+
+### Before Optimization
+
+- Segmentation fault when validating 5000+ articles
+- No performance monitoring
+- No memory tracking
+- Potential memory exhaustion in backfill
+
+### After Optimization
+
+- **Validation**: Processes 5000+ articles in batches of 100 (2 workers per batch)
+- **Backfill**: Processes articles in batches of 50
+- **Monitoring**:
+  - Timing logs for validation, backfill, and total crawl
+  - Memory usage logging at key points (if psutil installed)
+  - Progress logging for each batch
+- **Memory**: Explicit cleanup between batches (del batch, del validated)
+
+### Performance Targets
+
+- Validate 5000 articles without crashing: ✅ Achieved
+- Validation time: < 30 seconds (to be measured in production)
+- Total crawl time: < 5 minutes (to be measured in production)
+- Memory usage: Stable and monitored (to be measured in production)
 
 ## Environment Variables
 

@@ -10,6 +10,7 @@ import concurrent.futures
 from datetime import datetime, timezone, timedelta
 import urllib3
 import os
+import sys
 
 # SSL verification setting - can be disabled via environment variable if needed
 VERIFY_SSL = os.getenv("VERIFY_SSL", "true").lower() == "true"
@@ -64,6 +65,19 @@ class DomainRateLimiter:
 
 
 _rate_limiter = DomainRateLimiter(min_interval=1.0)
+
+
+def _log_memory_usage(label: str):
+    """Log current memory usage if psutil is available."""
+    try:
+        import psutil
+        process = psutil.Process()
+        mem_info = process.memory_info()
+        print(f"[MEMORY] {label}: RSS={mem_info.rss / 1024 / 1024:.2f}MB, VMS={mem_info.vms / 1024 / 1024:.2f}MB")
+    except ImportError:
+        pass  # psutil not available, skip memory logging
+    except Exception:
+        pass  # Error accessing memory info, skip
 
 
 def fetch_url(url: str, max_retries: int = 3) -> Optional[str]:
@@ -423,6 +437,7 @@ def backfill_images(articles: List[Dict], max_workers: int = 8, limit: int = 999
     print(f"[BACKFILL] Fetching details for {len(missing)} articles...")
     filled_img = 0
     filled_pub = 0
+    batch_size = 50  # Process in batches to avoid memory issues
 
     def _fetch(article):
         nonlocal filled_img, filled_pub
@@ -435,8 +450,18 @@ def backfill_images(articles: List[Dict], max_workers: int = 8, limit: int = 999
             filled_pub += 1
         return article
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        list(executor.map(_fetch, missing))
+    # Process in batches to prevent memory exhaustion
+    total_batches = (len(missing) + batch_size - 1) // batch_size
+    for i in range(0, len(missing), batch_size):
+        batch = missing[i:i + batch_size]
+        batch_num = i // batch_size + 1
+        print(f"[BACKFILL] Processing batch {batch_num}/{total_batches} ({len(batch)} articles)...")
+        
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            list(executor.map(_fetch, batch))
+        
+        # Clear batch to free memory
+        del batch
 
     print(f"[BACKFILL] Found images for {filled_img}/{len(missing)}, published dates for {filled_pub}/{len(missing)}")
     return articles
@@ -1666,6 +1691,8 @@ SOURCES = {
 
 
 def crawl_all() -> List[Dict]:
+    crawl_start = time.time()
+    _log_memory_usage("Crawl start")
     results = []
     # bnews.vn
     for url in SOURCES["bnews.vn"]:
@@ -1777,29 +1804,54 @@ def crawl_all() -> List[Dict]:
         print(f"[CRAWL] tctd.vn from {url} ...")
         results.extend(parse_rss(url, "tctd.vn"))
 
-    # Validate and filter out articles with server errors (parallel)
+    # Validate and filter out articles with server errors (parallel with batch processing)
     print(f"[VALIDATE] Checking {len(results)} articles for server errors...")
+    _log_memory_usage("Before validation")
+    validate_start = time.time()
     valid_results = []
     invalid_count = 0
+    batch_size = 100  # Process in smaller batches to avoid memory issues
 
     def _validate_article(article):
         if validate_url(article["url"]):
             return article
         return None
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-        validated = list(executor.map(_validate_article, results))
-
-    for art in validated:
-        if art:
-            valid_results.append(art)
-        else:
-            invalid_count += 1
+    # Process in batches to prevent memory exhaustion
+    total_batches = (len(results) + batch_size - 1) // batch_size
+    for i in range(0, len(results), batch_size):
+        batch = results[i:i + batch_size]
+        batch_num = i // batch_size + 1
+        print(f"[VALIDATE] Processing batch {batch_num}/{total_batches} ({len(batch)} articles)...")
+        
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            validated = list(executor.map(_validate_article, batch))
+        
+        for art in validated:
+            if art:
+                valid_results.append(art)
+            else:
+                invalid_count += 1
+        
+        # Clear batch to free memory
+        del batch
+        del validated
 
     if invalid_count > 0:
         print(f"[VALIDATE] Removed {invalid_count} articles with server errors")
     results = valid_results
+    validate_time = time.time() - validate_start
+    print(f"[PERF] Validation completed in {validate_time:.2f}s")
+    _log_memory_usage("After validation")
 
     # Backfill missing images by fetching article detail pages (all missing)
+    backfill_start = time.time()
+    _log_memory_usage("Before backfill")
     results = backfill_images(results, max_workers=4, limit=9999)
+    backfill_time = time.time() - backfill_start
+    print(f"[PERF] Backfill completed in {backfill_time:.2f}s")
+    _log_memory_usage("After backfill")
+    
+    total_time = time.time() - crawl_start
+    print(f"[PERF] Total crawl completed in {total_time:.2f}s ({len(results)} articles)")
     return results
